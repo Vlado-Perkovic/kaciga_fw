@@ -122,6 +122,24 @@ void app_main() {
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 
+    while (true) {
+        configure_sensor();  // Forced mode every cycle
+        vTaskDelay(pdMS_TO_TICKS(50));
+
+        int32_t t_raw, p_raw, h_raw;
+        uint16_t gas_adc;
+        uint8_t gas_range;
+        read_raw_data(&t_raw, &p_raw, &h_raw, &gas_adc, &gas_range);
+
+        float temp = compensate_temperature(t_raw);
+        float press = compensate_pressure(p_raw);
+        float hum = compensate_humidity(h_raw);
+        float gas = compensate_gas(gas_adc, gas_range);
+
+        ESP_LOGI(TAG, "T: %.2f °C | P: %.2f Pa | H: %.2f %% | Gas: %.2f Ohm", temp, press, hum, gas);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
     ESP_LOGI(TAG, "app_main finished setup. Tasks are running.");
     // app_main can exit now (or enter a low-power mode, or a simple loop if needed for other top-level logic).
     // The FreeRTOS scheduler will continue running the created tasks.
