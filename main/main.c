@@ -7,6 +7,9 @@
 #include "esp_log.h"
 #include "ssd1306.h"        // From SSD1306_Driver component
 #include "fonts.h"          // From SSD1306_Driver component
+#include <stdint.h>
+#include <math.h>
+#include "driver/i2c_master.h"
 
 // Include new local headers
 #include "common_types.h"
@@ -23,6 +26,8 @@ volatile float g_pressure = 1012.5;
 volatile float g_humidity = 60.0;
 volatile emergency_type_t g_current_emergency_type = EMERGENCY_TYPE_NONE;
 SemaphoreHandle_t g_display_mutex; // Mutex to protect shared display resources and emergency state
+extern i2c_master_bus_handle_t bus;
+extern i2c_master_dev_handle_t dev;
 
 
 void app_main() {
@@ -36,6 +41,32 @@ void app_main() {
         return;
     }
 
+    i2c_master_bus_config_t bus_cfg = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = I2C_PORT,
+        .sda_io_num = SDA_PIN,
+        .scl_io_num = SCL_PIN,
+        .glitch_ignore_cnt = 7,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &bus));
+
+    i2c_device_config_t dev_cfg = {
+        .device_address = BME690_ADDR,
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .scl_speed_hz = 100000,
+    };
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus, &dev_cfg, &dev));
+
+    uint8_t id = 0;
+    read_registers(REG_CHIP_ID, &id, 1);
+    if (id != CHIP_ID_VAL) {
+        ESP_LOGE(TAG, "Unexpected chip ID: 0x%02X", id);
+        return;
+    }
+
+    read_temperature_calibration();
+    read_humidity_calibration();
+    read_gas_calibration();
     // Initial display message
     SSD1306_Fill(SSD1306_COLOR_BLACK); // Clear buffer before first write
     const char* boot_msg = "Booting...";
@@ -72,6 +103,24 @@ void app_main() {
     }
     ESP_LOGI(TAG, "Sensor simulation task created.");
 
+    while (true) {
+        configure_sensor();  // Forced mode every cycle
+        vTaskDelay(pdMS_TO_TICKS(50));
+
+        int32_t t_raw, p_raw, h_raw;
+        uint16_t gas_adc;
+        uint8_t gas_range;
+        read_raw_data(&t_raw, &p_raw, &h_raw, &gas_adc, &gas_range);
+
+        float temp = compensate_temperature(t_raw);
+        float press = compensate_pressure(p_raw);
+        float hum = compensate_humidity(h_raw);
+        float gas = compensate_gas(gas_adc, gas_range);
+
+        ESP_LOGI(TAG, "T: %.2f °C | P: %.2f Pa | H: %.2f %% | Gas: %.2f Ohm", temp, press, hum, gas);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
     ESP_LOGI(TAG, "app_main finished setup. Tasks are running.");
     // app_main can exit now (or enter a low-power mode, or a simple loop if needed for other top-level logic).
     // The FreeRTOS scheduler will continue running the created tasks.
