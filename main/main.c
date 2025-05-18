@@ -116,8 +116,8 @@ void app_main() {
         return; // Critical error
     }
     ESP_LOGI(TAGERICA, "Sensor simulation task created.");
-    
-
+    //
+    //
     while (true) {
         configure_sensor();  // Forced mode every cycle
         vTaskDelay(pdMS_TO_TICKS(50));
