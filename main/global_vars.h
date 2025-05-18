@@ -10,6 +10,7 @@
 extern volatile float g_temperature;
 extern volatile float g_pressure;
 extern volatile float g_humidity;
+extern volatile float g_gas;
 
 // --- Global variable for current emergency state ---
 // Defined in main.c
