@@ -23,11 +23,12 @@
 
 // --- Define Global variables ---
 // These are now declared 'extern' in global_vars.h for other files to see
-volatile float g_temperature = 25.0;
-volatile float g_pressure = 1012.5;
-volatile float g_humidity = 60.0;
-volatile float g_gas = 0;
+volatile float g_temperature = 0.0;
+volatile float g_pressure = 0.0;
+volatile float g_humidity = 0.0;
+volatile float g_gas = 0.0;
 volatile emergency_type_t g_current_emergency_type = EMERGENCY_TYPE_NONE;
+
 SemaphoreHandle_t g_display_mutex; // Mutex to protect shared display resources and emergency state
 extern i2c_master_bus_handle_t bus;
 extern i2c_master_dev_handle_t dev;
@@ -73,10 +74,12 @@ void app_main() {
     // Initial display message
     SSD1306_Fill(SSD1306_COLOR_BLACK); // Clear buffer before first write
     const char* boot_msg = "Booting...";
+
     // Calculate position to center the boot message using Font_11x18
     uint16_t boot_msg_width = strlen(boot_msg) * Font_11x18.FontWidth;
     uint16_t boot_msg_x = (SSD1306_WIDTH > boot_msg_width) ? (SSD1306_WIDTH - boot_msg_width) / 2 : 0;
     uint16_t boot_msg_y = (SSD1306_HEIGHT > Font_11x18.FontHeight) ? (SSD1306_HEIGHT - Font_11x18.FontHeight) / 2 : 0;
+
     SSD1306_GotoXY(boot_msg_x, boot_msg_y);
     SSD1306_Puts(boot_msg, &Font_11x18, SSD1306_COLOR_WHITE);
     SSD1306_UpdateScreen();
@@ -105,6 +108,8 @@ void app_main() {
         return; // Critical error
     }
     ESP_LOGI(TAGERICA, "Sensor simulation task created.");
+    
+
     while (true) {
         configure_sensor();  // Forced mode every cycle
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -119,7 +124,7 @@ void app_main() {
         float hum = compensate_humidity(h_raw);
         float gas = compensate_gas(gas_adc, gas_range);
 
-        ESP_LOGI(TAGERICA, "T: %.2f °C | P: %.2f Pa | H: %.2f %% | Gas: %.2f Ohm", temp, press, hum, gas);
+        //ESP_LOGI(TAGERICA, "T: %.2f °C | P: %.2f Pa | H: %.2f %% | Gas: %.2f Ohm", temp, press, hum, gas);
 
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
