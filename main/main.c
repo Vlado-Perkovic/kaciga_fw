@@ -5,7 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "esp_log.h"
+// #include "esp_log.h"
 #include "ssd1306.h"        // From SSD1306_Driver component
 #include "fonts.h"          // From SSD1306_Driver component
 #include <math.h>
@@ -18,6 +18,7 @@
 #include "global_vars.h"    // For extern declarations (optional here as they are defined below)
 #include "display_logic.h"
 #include "sensor_logic.h"
+#include "espnow_logic.h"   // New ESP-NOW logic
 
 #define TAGERICA "APP_MAIN"
 
@@ -91,7 +92,14 @@ void app_main() {
         ESP_LOGE(TAGERICA, "Failed to create display mutex!");
         return; // Critical error
     }
-
+// Initialize ESP-NOW
+    // Initialize ESP-NOW and start its task
+    if (app_espnow_init_and_start_task() != ESP_OK) {
+        ESP_LOGE(TAGERICA, "ESP-NOW Initialization and Task Start Failed!");
+        // Handle failure as needed
+    } else {
+        ESP_LOGI(TAGERICA, "ESP-NOW Initialized and Task Started.");
+    }
     // Create the display task (function is now in display_logic.c)
     if (xTaskCreate(&display_task, "display_oled_task", 2048 * 2, NULL, 5, NULL) != pdPASS) {
         ESP_LOGE(TAGERICA, "Failed to create display_task!");
