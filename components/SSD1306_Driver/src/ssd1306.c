@@ -275,16 +275,35 @@ char SSD1306_Putc(char ch, FontDef_t* Font, SSD1306_COLOR_t color) {
 	}
 	
 	/* Go through font */
-	for (i = 0; i < Font->FontHeight; i++) {
-		b = Font->data[(ch - 32) * Font->FontHeight + i];
-		for (j = 0; j < Font->FontWidth; j++) {
-			if ((b << j) & 0x8000) { // Font data is 16-bit
-				SSD1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), color);
-			} else {
-				SSD1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), (SSD1306_COLOR_t)!color);
-			}
-		}
-	}
+	// for (i = 0; i < Font->FontHeight; i++) {
+	// 	b = Font->data[(ch - 32) * Font->FontHeight + i];
+	// 	for (j = 0; j < Font->FontWidth; j++) {
+	// 		if ((b << j) & 0x8000) { // Font data is 16-bit
+	// 			SSD1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), color);
+	// 		} else {
+	// 			SSD1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), (SSD1306_COLOR_t)!color);
+	// 		}
+	// 	}
+	// }
+/* Go through font data row by row */
+    for (i = 0; i < Font->FontHeight; i++) { // 'i' is the source row from font data (0 to FontHeight-1)
+        b = Font->data[(ch - 32) * Font->FontHeight + i]; // Get data for the i-th row of the character
+
+        // Iterate through pixels in the current row from left to right
+        for (j = 0; j < Font->FontWidth; j++) {
+            // Calculate the target Y coordinate on the screen for vertical mirroring:
+            // Font row 'i' will be drawn at screen row 'Font->FontHeight - 1 - i'
+            // relative to the character's top drawing position (SSD1306.CurrentY).
+            uint16_t targetScreenY = SSD1306.CurrentY + (Font->FontHeight - 1 - i);
+
+            if ((b << j) & 0x8000) { // Check the j-th bit (from left) of the font data row 'b'
+                // Draw pixel at screen column 'j' and the calculated targetScreenY
+                SSD1306_DrawPixel(SSD1306.CurrentX + j, targetScreenY, color);
+            } else {
+                SSD1306_DrawPixel(SSD1306.CurrentX + j, targetScreenY, (SSD1306_COLOR_t)!color);
+            }
+        }
+    }
 	
 	/* Increase pointer */
 	SSD1306.CurrentX += Font->FontWidth;
