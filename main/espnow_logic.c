@@ -2,6 +2,7 @@
 #include <time.h>
 #include <string.h>
 #include <assert.h>
+#include "common_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/timers.h"
@@ -17,6 +18,8 @@
 #include <inttypes.h> // For PRIX32
 
 #include "espnow_logic.h" // Your header file
+
+#include "global_vars.h"
 
 static const char *TAG_ESPNOW_LOGIC = "ESPNOW_FILTER_EXT"; // Updated TAG
 
@@ -243,22 +246,56 @@ static void app_espnow_broadcast_processing_task(void *pvParameter)
              CONFIG_ESPNOW_SEND_DELAY, (int)sizeof(app_espnow_data_t));
 
     TickType_t last_send_time = xTaskGetTickCount();
+    char current_message_text[2];
 
     while (true) {
-        if ((xTaskGetTickCount() - last_send_time) >= pdMS_TO_TICKS(CONFIG_ESPNOW_SEND_DELAY)) {
-            char current_message_text[32];
-            snprintf(current_message_text, sizeof(current_message_text), "Dev #%"PRIu32, message_counter++);
-            app_espnow_prepare_broadcast_data(&send_data_buffer, current_message_text, device_magic_number);
+        // if ((xTaskGetTickCount() - last_send_time) >= pdMS_TO_TICKS(CONFIG_ESPNOW_SEND_DELAY)) {
+        //     if (g_current_emergency_type == EMERGENCY_TYPE_DANGER) {}
+        //     snprintf(current_message_text, sizeof(current_message_text), "Dev #%"PRIu32, message_counter++);
+        //     app_espnow_prepare_broadcast_data(&send_data_buffer, current_message_text, device_magic_number);
+        //
+        //     ESP_LOGI(TAG_ESPNOW_LOGIC, "TASK: Sending broadcast: Seq=%u, Msg='%s', CRC=0x%04X",
+        //              send_data_buffer.seq_num, send_data_buffer.simple_message, send_data_buffer.crc);
+        //
+        //     if (esp_now_send(s_app_broadcast_mac, (uint8_t *)&send_data_buffer, sizeof(app_espnow_data_t)) != ESP_OK) {
+        //         ESP_LOGE(TAG_ESPNOW_LOGIC, "TASK: Broadcast send API call error");
+        //     }
+        //     last_send_time = xTaskGetTickCount();
+        // // }
+        if (g_current_emergency_type != EMERGENCY_TYPE_NONE) {
+            // Check if it's time to send an emergency message based on the delay
+            if ((xTaskGetTickCount() - last_send_time) >= pdMS_TO_TICKS(CONFIG_ESPNOW_SEND_DELAY)) {
+                memset(&send_data_buffer, 0, sizeof(app_espnow_data_t)); // Clear buffer before populating
 
-            ESP_LOGI(TAG_ESPNOW_LOGIC, "TASK: Sending broadcast: Seq=%u, Msg='%s', CRC=0x%04X",
-                     send_data_buffer.seq_num, send_data_buffer.simple_message, send_data_buffer.crc);
+                send_data_buffer.type = APP_ESPNOW_DATA_BROADCAST;
+                send_data_buffer.state = (uint8_t)g_current_emergency_type; // Store the actual emergency type
+                send_data_buffer.seq_num = s_app_espnow_broadcast_seq_num++;
+                send_data_buffer.magic = device_magic_number;
 
-            if (esp_now_send(s_app_broadcast_mac, (uint8_t *)&send_data_buffer, sizeof(app_espnow_data_t)) != ESP_OK) {
-                ESP_LOGE(TAG_ESPNOW_LOGIC, "TASK: Broadcast send API call error");
+                // Populate simple_message with a single char indicator + null terminator
+                if (g_current_emergency_type == EMERGENCY_TYPE_DANGER) {
+                    send_data_buffer.simple_message[0] = 'D';
+                } else if (g_current_emergency_type == EMERGENCY_TYPE_FALL) {
+                    send_data_buffer.simple_message[0] = 'F';
+                } else {
+                    // Fallback for any other emergency type, though current enum only has DANGER and FALL
+                    send_data_buffer.simple_message[0] = 'E'; 
+                }
+                send_data_buffer.simple_message[1] = '\0'; // Ensure null termination for safe logging
+
+                // Calculate CRC
+                send_data_buffer.crc = 0; // Clear CRC field before calculation
+                send_data_buffer.crc = esp_crc16_le(UINT16_MAX, (uint8_t const *)&send_data_buffer, sizeof(app_espnow_data_t));
+
+                ESP_LOGI(TAG_ESPNOW_LOGIC, "TASK: Sending EMERGENCY broadcast: TypeState=%u, Seq=%u, Msg='%s', CRC=0x%04X",
+                         send_data_buffer.state, send_data_buffer.seq_num, send_data_buffer.simple_message, send_data_buffer.crc);
+
+                if (esp_now_send(s_app_broadcast_mac, (uint8_t *)&send_data_buffer, sizeof(app_espnow_data_t)) != ESP_OK) {
+                    ESP_LOGE(TAG_ESPNOW_LOGIC, "TASK: EMERGENCY Broadcast send API call error");
+                }
+                last_send_time = xTaskGetTickCount(); // Update last send time
             }
-            last_send_time = xTaskGetTickCount();
         }
-
         if (xQueueReceive(s_app_espnow_event_queue, &evt, pdMS_TO_TICKS(100)) == pdTRUE) {
             switch (evt.id) {
                 case APP_ESPNOW_SEND_CB: {

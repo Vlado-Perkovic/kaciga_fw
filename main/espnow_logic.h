@@ -95,7 +95,7 @@ typedef struct {
     uint16_t seq_num;         // Sequence number of ESPNOW data.
     uint16_t crc;             // CRC16 value of ESPNOW data.
     uint32_t magic;           // Magic number which is used to determine which device to send unicast ESPNOW data.
-    char simple_message[32];  // Added for a simple text message
+    char simple_message[2];  // Added for a simple text message
     // uint8_t payload[0];    // Real payload of ESPNOW data. // We'll use a fixed struct for simplicity
 } __attribute__((packed)) app_espnow_data_t;
 
